@@ -1,6 +1,8 @@
 ﻿using System;
 using System.Net;
 
+using HtmlAgilityPack;
+
 using Encoding = System.Text.Encoding;
 
 namespace sona
@@ -18,6 +20,8 @@ namespace sona
 			WebClient client = new WebClient ();
 			client.Encoding = Encoding.GetEncoding("windows-1251");
 			string reply = client.DownloadString (sites[6]);
+			var html_node = new HtmlDocument ();
+			html_node.LoadHtml (client.DownloadString (sites[6]));
 		}
 	}
 }
