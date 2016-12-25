@@ -24,26 +24,26 @@ namespace sona
 		
 		public static void Main (string[] args)
 		{
-			string starting_point = sites [6] + "/archive";
+			string startingPoint = sites [6] + "/archive";
 			WebClient client = new WebClient ();
-			client.Encoding = Encoding.GetEncoding ("windows-1251");
-			var html_node = new HtmlDocument ();
-			var url = starting_point;
+			client.Encoding = Encoding.GetEncoding (SearchEnc.SearchEncoding(startingPoint));
+			var htmlNode = new HtmlDocument ();
+			var url = startingPoint;
 			while(!String.IsNullOrEmpty(url)) {
-				html_node.LoadHtml (client.DownloadString (url));
-				var document_node = html_node.DocumentNode;
+				htmlNode.LoadHtml (client.DownloadString (url));
+				var documentNode = htmlNode.DocumentNode;
 				try {
-					var ul_node = document_node
+					var ulNode = documentNode
 						.SelectNodes ("//ul")
 						.Select (node => node.LastChild);
-					var a_node = ul_node.ElementAt (0).SelectSingleNode ("a");
-					var link_node = a_node.Attributes ["href"] != null
-						? HttpUtility.HtmlDecode (sites [6] + a_node.Attributes ["href"].Value.ToString ())
+					var aNode = ulNode.ElementAt (0).SelectSingleNode ("a");
+					var linkNode = aNode.Attributes ["href"] != null
+						? HttpUtility.HtmlDecode (sites [6] + aNode.Attributes ["href"].Value.ToString ())
 						: "Can't parse";
-					url = link_node;
+					url = linkNode;
 				}
 				catch (ArgumentNullException) {
-					var article_node = document_node
+					var articleNode = documentNode
 						.SelectNodes ("//td[not(@*)]/a")
 						.Select (node => node.Attributes["href"].Value != null
 							? HttpUtility.HtmlDecode(sites [6] + node.Attributes["href"].Value)
