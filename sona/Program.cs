@@ -32,26 +32,31 @@ namespace sona
 			while(!String.IsNullOrEmpty(url)) {
 				htmlNode.LoadHtml (client.DownloadString (url));
 				var documentNode = htmlNode.DocumentNode;
-				try {
-					var ulNode = documentNode
-						.SelectNodes ("//ul")
-						.Select (node => node.LastChild);
-					var aNode = ulNode.ElementAt (0).SelectSingleNode ("a");
-					var linkNode = aNode.Attributes ["href"] != null
-						? HttpUtility.HtmlDecode (sites [6] + aNode.Attributes ["href"].Value.ToString ())
-						: "Can't parse";
-					url = linkNode;
-				}
-				catch (ArgumentNullException) {
-					var articleNode = documentNode
-						.SelectNodes ("//td[not(@*)]/a")
-						.Select (node => node.Attributes["href"].Value != null
-							? HttpUtility.HtmlDecode(sites [6] + node.Attributes["href"].Value)
-							: "Can't parse")
-						.ToArray();
-				}
+				ubsMtasParser (url, documentNode);
 			}
+		}
 
+		public static Array ubsMtasParser(string url, HtmlNode documentNode) {
+			try {
+				var ulNode = documentNode
+					.SelectNodes ("//ul")
+					.Select (node => node.LastChild);
+				var aNode = ulNode.ElementAt (0).SelectSingleNode ("a");
+				var linkNode = aNode.Attributes ["href"] != null
+					? HttpUtility.HtmlDecode (sites [6] + aNode.Attributes ["href"].Value.ToString ())
+					: "Can't parse";
+				url = linkNode;
+			}
+			catch (ArgumentNullException) {
+				var articlesUrl = documentNode
+					.SelectNodes ("//td[not(@*)]/a")
+					.Select (node => node.Attributes["href"].Value != null
+						? HttpUtility.HtmlDecode(sites [6] + node.Attributes["href"].Value)
+						: "Can't parse")
+					.ToArray();
+				return articlesUrl;
+			}
+			return new string[] {""};
 		}
 	}
 }
