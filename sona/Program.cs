@@ -15,31 +15,31 @@ namespace sona
 		public static readonly string[] sites =
 		{
 			"http://jitcs.ru/",			// WIP: looking only last magazine issue for
-			"http://www.jit.nsu.ru/",	// WIP: looking only last magazine issue for | index.php?+ru -- for RU-lang
+			"http://www.jit.nsu.ru/",	// WIP: looking only last magazine issue for | /index.php?+ru -- for RU-lang
 			"http://sv-journal.org/",
 			"http://www.novtex.ru/",
 			"http://aidt.ru/",
 			"http://ipiran.ru/",
 			"http://ubs.mtas.ru/",		// WIP: looking only last magazine issue for | /archive
 			"http://bijournal.hse.ru/",
-			"http://www.isa.ru/"
+			"http://www.isa.ru/"		// WIP: looking only last magazine issue for | /proceedings
 		};
 		
 		public static void Main (string[] args)
 		{
-			string startingPoint = sites [1] + "/index.php?+ru";
+			string startingPoint = sites [8] + "proceedings";
 			WebClient client = new WebClient ();
 			client.Encoding = Encoding.GetEncoding (
 				SearchEnc.SearchEncoding(startingPoint));
 			var url = startingPoint;
-			jitnsuParser (url, client);
-			//jitcsParser (url, client);
+			//jitnsuParser (url, client);
+			jitcsIsaParser (url, client);
 			//ubsMtasParser (url, client);
 		}
 
 
 		/*
-		 * WIP: looking only last magazine issue for
+		 * WIP: looking only last ubs.mtas' issue for
 		 * TODO: Refactoring
 		 */
 
@@ -73,11 +73,11 @@ namespace sona
 
 
 		/*
-		 * WIP: looking only last magazine issue for
+		 * WIP: looking only last jitcs' and isa's issue for
 		 * TODO: Refactoring
 		 */
 
-		public static Array jitcsParser(string url, WebClient client)
+		public static Array jitcsIsaParser(string url, WebClient client)
 		{
 			var htmlNode = new HtmlDocument ();
 			htmlNode.LoadHtml (client.DownloadString (url));
@@ -110,7 +110,7 @@ namespace sona
 
 
 		/*
-		 * WIP: looking only last magazine issue for
+		 * WIP: looking only last jitnsu's issue for
 		 * TODO: Need refactoring
 		 */
 
