@@ -26,6 +26,10 @@ namespace sona
                     string LI = s.Substring(strLI);
                     str = LI.Replace(" ", string.Empty);
                     str = str.Replace("charset=", string.Empty);
+					if (str [0] == '"')
+					{
+						str = str.Trim(new Char[] {'"'});
+					}
                     try
                     {
                         str = str.Replace("\">", string.Empty);

@@ -16,7 +16,7 @@ namespace sona
 		{
 			"http://jitcs.ru/",			// WIP: looking only last magazine issue for
 			"http://www.jit.nsu.ru/",	// WIP: looking only last magazine issue for | /index.php?+ru -- for RU-lang
-			"http://sv-journal.org/",
+			"http://sv-journal.org/",	// WIP: looking only last magazine issue for | /issues.php?lang=ru -- for RU-lang
 			"http://www.novtex.ru/",
 			"http://aidt.ru/",
 			"http://ipiran.ru/",
@@ -27,14 +27,15 @@ namespace sona
 		
 		public static void Main (string[] args)
 		{
-			string startingPoint = sites [8] + "proceedings";
+			string startingPoint = sites [2];
 			WebClient client = new WebClient ();
 			client.Encoding = Encoding.GetEncoding (
 				SearchEnc.SearchEncoding(startingPoint));
 			var url = startingPoint;
 			//jitnsuParser (url, client);
-			jitcsIsaParser (url, client);
+			//jitcsIsaParser (url, client);
 			//ubsMtasParser (url, client);
+			svJournalParser (url, client);
 		}
 
 
@@ -134,6 +135,35 @@ namespace sona
 					? HttpUtility.HtmlDecode (sites[1] + node.Attributes ["href"].Value.ToString ())
 					: "Can't parse");
 			return articles.ToArray ();
+		}
+
+
+		/*
+		 * WIP: looking only last sv-journal's issue for
+		 * TODO: Need refactoring
+		 */
+
+		public static Array svJournalParser(string url, WebClient client)
+		{
+			var htmlNode = new HtmlDocument ();
+			htmlNode.LoadHtml (client.DownloadString (url + "issues.php?lang=ru"));
+			var documentNode = htmlNode.DocumentNode;
+			var lastIssue = documentNode
+				.SelectNodes ("//tr[2]/td[@class='nr'and last()]/a")
+				.Select (node => node.Attributes ["href"] != null
+					? HttpUtility.HtmlDecode (url + node.Attributes ["href"].Value.ToString ())
+					: "Can't parse").ElementAt(0);
+			var uriAddress = new Uri (lastIssue);
+			var issueDate = uriAddress.AbsolutePath.Split('/')[1] + '/';
+			htmlNode.LoadHtml (client.DownloadString (lastIssue));
+			documentNode = htmlNode.DocumentNode;
+			var articles = documentNode
+				.SelectNodes ("//tr/td[@class='pub_pp']/a")
+				.Select (node => node.Attributes ["href"] != null
+					? HttpUtility.HtmlDecode (url + issueDate + node.Attributes ["href"].Value.ToString ())
+					: "Can't parse")
+				.ToArray();
+			return articles;
 		}
 	}
 }
