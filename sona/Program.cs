@@ -17,7 +17,7 @@ namespace sona
 			"http://jitcs.ru/",			// WIP: looking only last magazine issue for
 			"http://www.jit.nsu.ru/",	// WIP: looking only last magazine issue for | /index.php?+ru -- for RU-lang
 			"http://sv-journal.org/",	// WIP: looking only last magazine issue for | /issues.php?lang=ru -- for RU-lang
-			"http://www.novtex.ru/",
+			"http://www.novtex.ru/",	// WIP: looking only last magazine issue for | /IT/newissue.htm
 			"http://aidt.ru/",
 			"http://ipiran.ru/",
 			"http://ubs.mtas.ru/",		// WIP: looking only last magazine issue for | /archive
@@ -27,7 +27,7 @@ namespace sona
 		
 		public static void Main (string[] args)
 		{
-			string startingPoint = sites [2];
+			string startingPoint = sites [3];
 			WebClient client = new WebClient ();
 			client.Encoding = Encoding.GetEncoding (
 				SearchEnc.SearchEncoding(startingPoint));
@@ -35,7 +35,8 @@ namespace sona
 			//jitnsuParser (url, client);
 			//jitcsIsaParser (url, client);
 			//ubsMtasParser (url, client);
-			svJournalParser (url, client);
+			//svJournalParser (url, client);
+			novtexParser (url, client);
 		}
 
 
@@ -165,5 +166,18 @@ namespace sona
 				.ToArray();
 			return articles;
 		}
+
+
+
+		public static Array novtexParser(string url, WebClient client)
+		{
+			var htmlNode = new HtmlDocument ();
+			htmlNode.LoadHtml (client.DownloadString (url + "IT/newissue.htm"));
+			var documentNode = htmlNode.DocumentNode;
+			var articlesOnOnePage = url + documentNode.SelectNodes ("//td[@class='itmain']/p[@class='itmain']/a") [0]
+				.GetAttributeValue("href", "Can't parse");
+			return articlesOnOnePage.ToArray ();
+		}
 	}
 }
+
