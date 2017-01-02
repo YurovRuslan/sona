@@ -18,7 +18,7 @@ namespace sona
 			"http://www.jit.nsu.ru/",	// WIP: looking only last magazine issue for | /index.php?+ru -- for RU-lang
 			"http://sv-journal.org/",	// WIP: looking only last magazine issue for | /issues.php?lang=ru -- for RU-lang
 			"http://www.novtex.ru/",	// WIP: looking only last magazine issue for | /IT/newissue.htm
-			"http://aidt.ru/",
+			"http://aidt.ru/",			// WIP: looking only last magazine issue for | /index.php?lang=ru for RU-lang
 			"http://ipiran.ru/",
 			"http://ubs.mtas.ru/",		// WIP: looking only last magazine issue for | /archive
 			"http://bijournal.hse.ru/",
@@ -27,7 +27,7 @@ namespace sona
 		
 		public static void Main (string[] args)
 		{
-			string startingPoint = sites [3];
+			string startingPoint = sites [4];
 			WebClient client = new WebClient ();
 			client.Encoding = Encoding.GetEncoding (
 				SearchEnc.SearchEncoding(startingPoint));
@@ -36,7 +36,8 @@ namespace sona
 			//jitcsIsaParser (url, client);
 			//ubsMtasParser (url, client);
 			//svJournalParser (url, client);
-			novtexParser (url, client);
+			//novtexParser (url, client);
+			aidtParser(url, client);
 		}
 
 
@@ -168,6 +169,10 @@ namespace sona
 		}
 
 
+		/*
+		 * WIP: looking only last novtex's issue for
+		 * TODO: Need refactoring
+		 */
 
 		public static Array novtexParser(string url, WebClient client)
 		{
@@ -177,6 +182,31 @@ namespace sona
 			var articlesOnOnePage = url + documentNode.SelectNodes ("//td[@class='itmain']/p[@class='itmain']/a") [0]
 				.GetAttributeValue("href", "Can't parse");
 			return articlesOnOnePage.ToArray ();
+		}
+
+
+		/*
+		 * WIP: looking only last aidt's issue for
+		 * TODO: Need refactoring
+		 * 		 Latter issue not always really latter
+		 */
+
+		public static Array aidtParser(string url, WebClient client)
+		{
+			var htmlNode = new HtmlDocument ();
+			htmlNode.LoadHtml (client.DownloadString (url + "index.php?lang=ru"));
+			var documentNode = htmlNode.DocumentNode;
+			var lastIssue = url + documentNode.SelectSingleNode ("//div[@id='avatar-right']//li[1]/a")
+				.GetAttributeValue("href", "Can't parse");
+			htmlNode.LoadHtml (client.DownloadString (lastIssue));
+			documentNode = htmlNode.DocumentNode;
+			var articles = documentNode
+				.SelectNodes ("//div[@class='sectionlist']/ul/li/a")
+				.Select( node => node.Attributes ["href"] != null
+					? HttpUtility.HtmlDecode (url + node.Attributes ["href"].Value.ToString ())
+					: "Can't parse")
+				.ToArray();
+			return articles;
 		}
 	}
 }
