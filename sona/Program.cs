@@ -1,8 +1,12 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Data;
 using System.Linq;
 using System.Net;
 using System.Web;
+
+using MySql.Data;
+using MySql.Data.MySqlClient;
 
 using HtmlAgilityPack;
 
@@ -24,20 +28,47 @@ namespace sona
 			"http://bijournal.hse.ru/",
 			"http://www.isa.ru/"		// WIP: looking only last magazine issue for | /proceedings
 		};
-		
-		public static void Main (string[] args)
+
+		public static int Main (string[] args)
 		{
-			string startingPoint = sites [4];
+			if (args.Length > 1) {
+				Console.WriteLine ("Too much command line args.");
+				return -1;
+			} else if (args.Length < 1) {
+				Console.WriteLine ("Too few command line args.");
+				Console.WriteLine (args.Length.ToString());
+				return -1;
+			}
+			var journal = args[0];
+
+			string startingPoint = sites [1];
 			WebClient client = new WebClient ();
 			client.Encoding = Encoding.GetEncoding (
 				SearchEnc.SearchEncoding(startingPoint));
-			var url = startingPoint;
-			//jitnsuParser (url, client);
-			//jitcsIsaParser (url, client);
-			//ubsMtasParser (url, client);
-			//svJournalParser (url, client);
-			//novtexParser (url, client);
-			aidtParser(url, client);
+			Array links = novtexParser (sites[3], client);;
+			string user = @"server=localhost;userid=yurov;password=Heckbr9573175;database=macDuck;CharSet=utf8;";
+			MySqlConnection conn = new MySqlConnection(user);
+			conn.Open();
+			if (journal == "jitnsu") {
+				links = jitnsuParser (sites [1] + "index.php?+ru", client);
+			} else if (journal == "jitcs") {
+			links = jitcsIsaParser (sites[0], client);
+			} else if (journal == "isa") {
+				links = jitcsIsaParser (sites[8] + "proceedings", client);
+			} else if (journal == "ubsMtas") {
+				links = ubsMtasParser (sites[6] + "archive", client);
+			} else if (journal == "svJournal") {
+				links = svJournalParser (sites[2], client);
+			/*} else if (journal == "novtex") {
+				links = novtexParser (sites[3], client);*/
+			} else {
+				links = aidtParser(sites[4], client);
+			}
+			foreach(var item in links)
+			{
+				Console.WriteLine(item.ToString());
+			}
+			return 0;
 		}
 
 
@@ -122,6 +153,9 @@ namespace sona
 			var htmlNode = new HtmlDocument ();
 			htmlNode.LoadHtml (client.DownloadString (url));
 			var documentNode = htmlNode.DocumentNode;
+			var lastIssue1 = documentNode
+				.SelectNodes ("//dd/a")
+				.Where (node => node.InnerText == "Последний выпуск");
 			var lastIssue = documentNode
 				.SelectNodes ("//dd/a")
 				.Where (node => node.InnerText == "Последний выпуск")
