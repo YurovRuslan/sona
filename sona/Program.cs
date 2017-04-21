@@ -1,9 +1,10 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Data;
+using System.IO;
 using System.Linq;
 using System.Net;
 using System.Web;
+using System.Data.SQLite;
 
 using MySql.Data;
 using MySql.Data.MySqlClient;
@@ -31,38 +32,68 @@ namespace sona
 
 		public static int Main (string[] args)
 		{
-			if (args.Length > 1) {
+			/*if (args.Length > 1) {
 				Console.WriteLine ("Too much command line args.");
 				return -1;
 			} else if (args.Length < 1) {
 				Console.WriteLine ("Too few command line args.");
 				Console.WriteLine (args.Length.ToString());
 				return -1;
-			}
-			var journal = args[0];
+			}*
+			var journal = args[0];*/
+			var journal = "aidt";
 
 			string startingPoint = sites [1];
 			WebClient client = new WebClient ();
 			client.Encoding = Encoding.GetEncoding (
 				SearchEnc.SearchEncoding(startingPoint));
-			Array links = novtexParser (sites[3], client);;
-			string user = @"server=localhost;userid=yurov;password=Heckbr9573175;database=macDuck;CharSet=utf8;";
-			MySqlConnection conn = new MySqlConnection(user);
-			conn.Open();
+			Array links = novtexParser (sites[3], client);
+			string number = "";
 			if (journal == "jitnsu") {
-				links = jitnsuParser (sites [1] + "index.php?+ru", client);
+				links = jitnsuParser (sites [1] + "index.php?+ru", client, ref number);
+				var file = File.ReadAllText ("jitnsu.txt").Split(' ');
+				if (file [0] == number.Split (' ') [0] || file [1] == number.Split (' ') [1]) {
+					return -1;
+				}
+				File.WriteAllText("jitnsu.txt", number);
 			} else if (journal == "jitcs") {
-			links = jitcsIsaParser (sites[0], client);
+				links = jitcsParser (sites[0], client, ref number);
+				var file = File.ReadAllText ("jitcs.txt").Split(' ');
+				if (file [0] == number.Split (' ') [0] || file [1] == number.Split (' ') [1]) {
+					return -1;
+				}
+				File.WriteAllText("jitcs.txt", number);
 			} else if (journal == "isa") {
-				links = jitcsIsaParser (sites[8] + "proceedings", client);
+				links = isaParser (sites[8] + "proceedings", client, ref number);
+				var file = File.ReadAllText ("isa.txt");
+				if (file == number) {
+					return -1;
+				}
+				File.WriteAllText("isa.txt", number);
 			} else if (journal == "ubsMtas") {
-				links = ubsMtasParser (sites[6] + "archive", client);
+				links = ubsMtasParser (sites[6] + "archive", client, ref number);
+				var file = File.ReadAllText ("ubsMtas.txt");
+				if (file == number) {
+					return -1;
+				}
+				File.WriteAllText("ubsMtas.txt", number);
 			} else if (journal == "svJournal") {
-				links = svJournalParser (sites[2], client);
+				links = svJournalParser (sites[2], client, ref number);
+				var file = File.ReadAllText ("svJournal.txt").Split(' ');
+				if (file [0] == number.Split (' ') [0] || file [1] == number.Split (' ') [1]) {
+					return -1;
+				}
+				File.WriteAllText("svJournal.txt", number);
 			/*} else if (journal == "novtex") {
-				links = novtexParser (sites[3], client);*/
+				links = novtexParser (sites[3], client);
+				File.WriteAllText("novtex.txt", createText);*/
 			} else {
-				links = aidtParser(sites[4], client);
+				links = aidtParser(sites[4], client, ref number);
+				var file = File.ReadAllText ("aidt.txt").Split(' ');
+				if (file [0] == number.Split (' ') [0] || file [1] == number.Split (' ') [1]) {
+					return -1;
+				}
+				File.WriteAllText("aidt.txt", number);
 			}
 			foreach(var item in links)
 			{
@@ -77,9 +108,10 @@ namespace sona
 		 * TODO: Refactoring
 		 */
 
-		public static Array ubsMtasParser(string url, WebClient client)
+		public static Array ubsMtasParser(string url, WebClient client, ref string issueNumber)
 		{
 			var htmlNode = new HtmlDocument ();
+			issueNumber = "";
 			while (!String.IsNullOrEmpty (url)) {
 				htmlNode.LoadHtml (client.DownloadString (url));
 				var documentNode = htmlNode.DocumentNode;
@@ -89,8 +121,9 @@ namespace sona
 					.Select (node => node.LastChild);
 					var aNode = ulNode.ElementAt (0).SelectSingleNode ("a");
 					var linkNode = aNode.Attributes ["href"] != null
-					? HttpUtility.HtmlDecode (sites [6] + aNode.Attributes ["href"].Value.ToString ())
-					: "Can't parse";
+						? HttpUtility.HtmlDecode (sites [6] + aNode.Attributes ["href"].Value.ToString ())
+						: "Can't parse";
+					issueNumber = aNode.InnerText.Split (new Char [] {' ', '&'}).ToList()[1];
 					url = linkNode;
 				} catch (ArgumentNullException) {
 					var articlesUrl = documentNode
@@ -111,15 +144,17 @@ namespace sona
 		 * TODO: Refactoring
 		 */
 
-		public static Array jitcsIsaParser(string url, WebClient client)
+		public static Array isaParser(string url, WebClient client, ref string issueNumber)
 		{
 			var htmlNode = new HtmlDocument ();
+			issueNumber = "";
 			htmlNode.LoadHtml (client.DownloadString (url));
 			var documentNode = htmlNode.DocumentNode;
 			var trNode = documentNode
 				.SelectNodes ("//tr[@class='leftmenuarticles']") [0]
 				.SelectSingleNode ("td/div");
 			var aNode = trNode.SelectSingleNode ("a");
+			issueNumber = aNode.InnerText.Split (new Char [] {' ', '-'}).ToList()[1];
 			var link = aNode.Attributes ["href"] != null
 				? HttpUtility.HtmlDecode (aNode.Attributes ["href"].Value.ToString ())
 				: "Can't parse";
@@ -142,20 +177,50 @@ namespace sona
 			return articles.ToArray ();
 		}
 
+		public static Array jitcsParser(string url, WebClient client, ref string issueNumber)
+		{
+			var htmlNode = new HtmlDocument ();
+			issueNumber = "";
+			htmlNode.LoadHtml (client.DownloadString (url));
+			var documentNode = htmlNode.DocumentNode;
+			var trNode = documentNode
+				.SelectNodes ("//tr[@class='leftmenuarticles']") [0]
+				.SelectSingleNode ("td/div");
+			var aNode = trNode.SelectSingleNode ("a");
+			issueNumber = aNode.InnerText.Replace(" / ", " ");
+			var link = aNode.Attributes ["href"] != null
+				? HttpUtility.HtmlDecode (aNode.Attributes ["href"].Value.ToString ())
+				: "Can't parse";
+			htmlNode.LoadHtml (client.DownloadString (link));
+			documentNode = htmlNode.DocumentNode;
+			var trArtNodes = documentNode
+				.SelectNodes ("//tr[@class='leftmenuarticles']");
+			List<string> articles = new List<string>();
+			articles.Add (link);
+			foreach (var trArtNode in trArtNodes.Skip(1)) {
+				var aArtNodes = trArtNode
+					.SelectNodes ("td/div/a");
+				foreach (var aArtNode in aArtNodes) {
+					articles.Add(aArtNode.Attributes ["href"] != null
+						? HttpUtility.HtmlDecode (aArtNode.Attributes ["href"].Value.ToString ())
+						: "Can't parse");
+				}
+			}
+			return articles.ToArray ();
+		}
+
 
 		/*
 		 * WIP: looking only last jitnsu's issue for
 		 * TODO: Need refactoring
 		 */
 
-		public static Array jitnsuParser(string url, WebClient client)
+		public static Array jitnsuParser(string url, WebClient client, ref string issueNumber)
 		{
 			var htmlNode = new HtmlDocument ();
+			issueNumber = "";
 			htmlNode.LoadHtml (client.DownloadString (url));
 			var documentNode = htmlNode.DocumentNode;
-			var lastIssue1 = documentNode
-				.SelectNodes ("//dd/a")
-				.Where (node => node.InnerText == "Последний выпуск");
 			var lastIssue = documentNode
 				.SelectNodes ("//dd/a")
 				.Where (node => node.InnerText == "Последний выпуск")
@@ -163,6 +228,13 @@ namespace sona
 				.First();
 			htmlNode.LoadHtml (client.DownloadString (lastIssue));
 			documentNode = htmlNode.DocumentNode;
+			issueNumber = documentNode
+				.SelectNodes("//body/p")[0]
+				.InnerText
+				.Split('№')[1]
+				.Replace("(", string.Empty)
+				.Replace(")", string.Empty)
+				.Substring(1);
 			var aNode = documentNode
 				.SelectNodes ("//dd/a");
 			var articles = aNode
@@ -179,13 +251,14 @@ namespace sona
 		 * TODO: Need refactoring
 		 */
 
-		public static Array svJournalParser(string url, WebClient client)
+		public static Array svJournalParser(string url, WebClient client, ref string issueNumber)
 		{
 			var htmlNode = new HtmlDocument ();
+			issueNumber = "";
 			htmlNode.LoadHtml (client.DownloadString (url + "issues.php?lang=ru"));
 			var documentNode = htmlNode.DocumentNode;
 			var lastIssue = documentNode
-				.SelectNodes ("//tr[2]/td[@class='nr'and last()]/a")
+				.SelectNodes ("//tr[2]/td[@class='nr' and last()]/a")
 				.Select (node => node.Attributes ["href"] != null
 					? HttpUtility.HtmlDecode (url + node.Attributes ["href"].Value.ToString ())
 					: "Can't parse").ElementAt(0);
@@ -199,6 +272,9 @@ namespace sona
 					? HttpUtility.HtmlDecode (url + issueDate + node.Attributes ["href"].Value.ToString ())
 					: "Can't parse")
 				.ToArray();
+			issueNumber = articles [0]
+				.Split ('/') [3]
+				.Replace ('-', ' ');
 			return articles;
 		}
 
@@ -211,6 +287,7 @@ namespace sona
 		public static Array novtexParser(string url, WebClient client)
 		{
 			var htmlNode = new HtmlDocument ();
+			string issueNumber = "";
 			htmlNode.LoadHtml (client.DownloadString (url + "IT/newissue.htm"));
 			var documentNode = htmlNode.DocumentNode;
 			var articlesOnOnePage = url + documentNode.SelectNodes ("//td[@class='itmain']/p[@class='itmain']/a") [0]
@@ -225,15 +302,20 @@ namespace sona
 		 * 		 Latter issue not always really latter
 		 */
 
-		public static Array aidtParser(string url, WebClient client)
+		public static Array aidtParser(string url, WebClient client, ref string issueNumber)
 		{
 			var htmlNode = new HtmlDocument ();
+			issueNumber = "";
 			htmlNode.LoadHtml (client.DownloadString (url + "index.php?lang=ru"));
 			var documentNode = htmlNode.DocumentNode;
 			var lastIssue = url + documentNode.SelectSingleNode ("//div[@id='avatar-right']//li[1]/a")
 				.GetAttributeValue("href", "Can't parse");
 			htmlNode.LoadHtml (client.DownloadString (lastIssue));
 			documentNode = htmlNode.DocumentNode;
+			issueNumber = documentNode
+				.SelectNodes ("//div[@class='category-list']/h2/span") [0]
+				.InnerText
+				.Replace (" / ", " ");
 			var articles = documentNode
 				.SelectNodes ("//div[@class='sectionlist']/ul/li/a")
 				.Select( node => node.Attributes ["href"] != null
