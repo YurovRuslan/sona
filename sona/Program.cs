@@ -31,6 +31,83 @@ namespace sona
 			"http://www.isa.ru/"		// WIP: looking only last magazine issue for | /proceedings
 		};
 
+		public enum WebResource {
+			JITCS,
+			JITNSU,
+			SVJOURNAL,
+			NOVTEX,
+			AIDT,
+			IPIRAN,
+			UBSMTAS,
+			BIJOURNAL,
+			ISA
+		};
+
+		public class Issue {
+			private int _number;
+			public int Number { get; set; }
+
+			private int _year;
+			public int Year { get; set; }
+		};
+
+		public class Journal {
+			public Journal(WebResource resource)
+			{
+				_name = resource;
+				_issue.Number = 0;
+				_issue.Year = 0;
+			}
+
+			public Journal(WebResource resource, Issue issue)
+			{
+				_name = resource;
+				_issue.Number = issue.Number;
+				_issue.Year = issue.Year;
+			}
+
+			public WebResource Name { get; set; }
+			public int Issue { get; set; }
+
+			public int Number() { return _issue.Number; }
+			public void Number(int number) { _issue.Number = number; }
+
+			public int Year() { return _issue.Year; }
+			public void Year(int year) { _issue.Year = year; }
+
+			//public Array Parse ();
+
+			public override string ToString()
+			{
+				switch (_name)
+				{
+					case WebResource.JITCS:
+						return "jitcs";
+					case WebResource.JITNSU:
+						return "jitnsu";
+					case WebResource.AIDT:
+						return "aidt";
+					case WebResource.BIJOURNAL:
+						return "bijournal";
+					case WebResource.IPIRAN:
+						return "ipiran";
+					case WebResource.ISA:
+						return "isa";
+					case WebResource.NOVTEX:
+						return "novtex";
+					case WebResource.SVJOURNAL:
+						return "svJournal";
+					case WebResource.UBSMTAS:
+						return "ubsMtas";
+					default:
+						throw new ArgumentOutOfRangeException();
+				}
+			}
+
+			private Issue _issue;
+			private WebResource _name;
+		};
+
 		public static int Main (string[] args)
 		{
 			/*if (args.Length > 2) {
@@ -42,17 +119,78 @@ namespace sona
 			}*
 			var journal = args[0];
 			string directArticleLink = args[1];*/
-			var journal = "aidt";
+			Journal journal = new Journal(WebResource.AIDT);
+			//var journal = "aidt";
 			string directArticleLink = "";
 
-			string startingPoint = sites [1];
 			WebClient client = new WebClient ();
 			client.Encoding = Encoding.GetEncoding (
-				SearchEnc.SearchEncoding(startingPoint));
+				SearchEnc.SearchEncoding(sites[1]));
 			Array links;
 			string number = "";
-			int month = 0;
-			int year = 0;
+			var lastIssueDate = getDateFromDb (journal);
+			switch (journal.Name)
+			{
+			case WebResource.JITNSU:
+				links = jitnsuParser (sites [1] + "index.php?+ru", client, ref number, directArticleLink);
+				if (lastIssueDate.Item1 == Convert.ToInt32 (number.Split (' ') [0]) || lastIssueDate.Item2 == Convert.ToInt32 (number.Split (' ') [1])) {
+					return -1;
+				}
+				File.WriteAllText ("jitnsu.txt", number);
+				break;
+			case WebResource.JITCS:
+				links = jitcsParser (sites [0], client, ref number, directArticleLink);
+				if (lastIssueDate.Item1 == Convert.ToInt32 (number.Split (' ') [0]) || lastIssueDate.Item2 == Convert.ToInt32 (number.Split (' ') [1])) {
+					return -1;
+				}
+				File.WriteAllText ("jitcs.txt", number);
+				break;
+			case WebResource.ISA:
+				links = isaParser (sites [8] + "proceedings", client, ref number, directArticleLink);
+				if (lastIssueDate.Item1 == Convert.ToInt32 (number)) {
+					return -1;
+				}
+				File.WriteAllText ("isa.txt", number);
+				break;
+			case WebResource.UBSMTAS:
+				links = ubsMtasParser (sites [6] + "archive", client, ref number, directArticleLink);
+				if (lastIssueDate.Item1 == Convert.ToInt32 (number)) {
+					return -1;
+				}
+				File.WriteAllText ("ubsMtas.txt", number);
+				break;
+			case WebResource.SVJOURNAL:
+				links = svJournalParser (sites [2], client, ref number, directArticleLink);
+				if (lastIssueDate.Item1 == Convert.ToInt32 (number.Split (' ') [0]) || lastIssueDate.Item2 == Convert.ToInt32 (number.Split (' ') [1])) {
+					return -1;
+				}
+				File.WriteAllText ("svJournal.txt", number);
+				break;
+			/*
+			case WebResource.NOVTEX:
+				links = novtexParser (sites[3], client);
+				File.WriteAllText("novtex.txt", createText);
+				break
+			*/
+			case WebResource.AIDT:
+				links = aidtParser (sites [4], client, ref number, directArticleLink);
+				if (lastIssueDate.Item1 == Convert.ToInt32 (number.Split (' ') [0]) || lastIssueDate.Item2 == Convert.ToInt32 (number.Split (' ') [1])) {
+					return -1;
+				}
+				File.WriteAllText ("aidt.txt", number);
+				break;
+			case WebResource.BIJOURNAL:
+				throw new NotImplementedException ("Method no implemented. Please try again later.");
+			default:
+				throw new ArgumentOutOfRangeException();
+			}
+			foreach(var item in links) {
+				Console.WriteLine(item.ToString());
+			}
+			return 0;
+		}
+
+		public static Tuple<int, int> getDateFromDb(Journal journal) {
 			string cs = @"server=localhost;userid=sona;password=123456;database=macDuck";
 			MySqlConnection connection = null;
 			try {
@@ -60,7 +198,7 @@ namespace sona
 				connection.Open();
 				var cmd = connection.CreateCommand();
 				cmd.CommandText = "select id from journals where name = @name";
-				cmd.Parameters.AddWithValue("@name", journal);
+				cmd.Parameters.AddWithValue("@name", journal.ToString());
 				string id = "";
 				using (var reader = cmd.ExecuteReader()) {
 					if (reader.Read()) {
@@ -71,71 +209,17 @@ namespace sona
 				cmd.Parameters.AddWithValue("@journal", id);
 				using (var reader = cmd.ExecuteReader()) {
 					if (reader.Read()) {
-						month = Convert.ToInt32(reader[0]);
-						year = Convert.ToInt32(reader[1]);
+						if (connection != null) {
+							connection.Close();
+						}
+						return Tuple.Create(Convert.ToInt32(reader[0]), Convert.ToInt32(reader[1]));
 					}
 				}
+				return Tuple.Create(0, 0);
 			} catch (MySqlException ex)	{
 				Console.WriteLine("Error: {0}",  ex.ToString());
-			} finally {          
-				if (connection != null) {
-					connection.Close();
-				}
+				return Tuple.Create(0, 0);
 			}
-
-			if (journal == "jitnsu") {
-				links = jitnsuParser (sites [1] + "index.php?+ru", client, ref number, directArticleLink);
-				if (month == Convert.ToInt32(number.Split (' ') [0]) || year == Convert.ToInt32(number.Split (' ') [1])) {
-					return -1;
-				}
-				File.WriteAllText("jitnsu.txt", number);
-			} else if (journal == "jitcs") {
-				links = jitcsParser (sites[0], client, ref number, directArticleLink);
-				if (month == Convert.ToInt32(number.Split (' ') [0]) || year == Convert.ToInt32(number.Split (' ') [1])) {
-					return -1;
-				}
-				File.WriteAllText("jitcs.txt", number);
-			} else if (journal == "isa") {
-				links = isaParser (sites[8] + "proceedings", client, ref number, directArticleLink);
-				if (month == Convert.ToInt32(number)) {
-					return -1;
-				}
-				File.WriteAllText("isa.txt", number);
-			} else if (journal == "ubsMtas") {
-				links = ubsMtasParser (sites[6] + "archive", client, ref number, directArticleLink);
-				if (month == Convert.ToInt32(number)) {
-					return -1;
-				}
-				File.WriteAllText("ubsMtas.txt", number);
-			} else if (journal == "svJournal") {
-				links = svJournalParser (sites[2], client, ref number, directArticleLink);
-				if (month == Convert.ToInt32(number.Split (' ') [0]) || year == Convert.ToInt32(number.Split (' ') [1])) {
-					return -1;
-				}
-				File.WriteAllText("svJournal.txt", number);
-			/*} else if (journal == "novtex") {
-				links = novtexParser (sites[3], client);
-				File.WriteAllText("novtex.txt", createText);*/
-			} else {
-				links = aidtParser(sites[4], client, ref number, directArticleLink);
-				if (month == Convert.ToInt32(number.Split (' ') [0]) || year == Convert.ToInt32(number.Split (' ') [1])) {
-					return -1;
-				}
-				File.WriteAllText("aidt.txt", number);
-			}
-			foreach(var item in links) {
-				Console.WriteLine(item.ToString());
-			}
-			return 0;
-		}
-
-
-		/*
-		 * SqlWriter
-		 * /
-
-		public static bool sqlWriter() {
-
 		}
 
 
