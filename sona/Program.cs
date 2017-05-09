@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Data.Common;
 using System.IO;
 using System.Linq;
 using System.Net;
@@ -32,55 +33,83 @@ namespace sona
 
 		public static int Main (string[] args)
 		{
-			/*if (args.Length > 1) {
+			/*if (args.Length > 2) {
 				Console.WriteLine ("Too much command line args.");
 				return -1;
 			} else if (args.Length < 1) {
 				Console.WriteLine ("Too few command line args.");
-				Console.WriteLine (args.Length.ToString());
 				return -1;
 			}*
-			var journal = args[0];*/
+			var journal = args[0];
+			string directArticleLink = args[1];*/
 			var journal = "aidt";
+			string directArticleLink = "";
 
 			string startingPoint = sites [1];
 			WebClient client = new WebClient ();
 			client.Encoding = Encoding.GetEncoding (
 				SearchEnc.SearchEncoding(startingPoint));
-			Array links = novtexParser (sites[3], client);
+			Array links;
 			string number = "";
+			int month = 0;
+			int year = 0;
+			string cs = @"server=localhost;userid=sona;password=123456;database=macDuck";
+			MySqlConnection connection = null;
+			try {
+				connection = new MySqlConnection(cs);
+				connection.Open();
+				var cmd = connection.CreateCommand();
+				cmd.CommandText = "select id from journals where name = @name";
+				cmd.Parameters.AddWithValue("@name", journal);
+				string id = "";
+				using (var reader = cmd.ExecuteReader()) {
+					if (reader.Read()) {
+						id = reader[0].ToString();
+					}
+				}
+				cmd.CommandText = "select month, year from last_issue where journal = @journal";
+				cmd.Parameters.AddWithValue("@journal", id);
+				using (var reader = cmd.ExecuteReader()) {
+					if (reader.Read()) {
+						month = Convert.ToInt32(reader[0]);
+						year = Convert.ToInt32(reader[1]);
+					}
+				}
+			} catch (MySqlException ex)	{
+				Console.WriteLine("Error: {0}",  ex.ToString());
+			} finally {          
+				if (connection != null) {
+					connection.Close();
+				}
+			}
+
 			if (journal == "jitnsu") {
-				links = jitnsuParser (sites [1] + "index.php?+ru", client, ref number);
-				var file = File.ReadAllText ("jitnsu.txt").Split(' ');
-				if (file [0] == number.Split (' ') [0] || file [1] == number.Split (' ') [1]) {
+				links = jitnsuParser (sites [1] + "index.php?+ru", client, ref number, directArticleLink);
+				if (month == Convert.ToInt32(number.Split (' ') [0]) || year == Convert.ToInt32(number.Split (' ') [1])) {
 					return -1;
 				}
 				File.WriteAllText("jitnsu.txt", number);
 			} else if (journal == "jitcs") {
-				links = jitcsParser (sites[0], client, ref number);
-				var file = File.ReadAllText ("jitcs.txt").Split(' ');
-				if (file [0] == number.Split (' ') [0] || file [1] == number.Split (' ') [1]) {
+				links = jitcsParser (sites[0], client, ref number, directArticleLink);
+				if (month == Convert.ToInt32(number.Split (' ') [0]) || year == Convert.ToInt32(number.Split (' ') [1])) {
 					return -1;
 				}
 				File.WriteAllText("jitcs.txt", number);
 			} else if (journal == "isa") {
-				links = isaParser (sites[8] + "proceedings", client, ref number);
-				var file = File.ReadAllText ("isa.txt");
-				if (file == number) {
+				links = isaParser (sites[8] + "proceedings", client, ref number, directArticleLink);
+				if (month == Convert.ToInt32(number)) {
 					return -1;
 				}
 				File.WriteAllText("isa.txt", number);
 			} else if (journal == "ubsMtas") {
-				links = ubsMtasParser (sites[6] + "archive", client, ref number);
-				var file = File.ReadAllText ("ubsMtas.txt");
-				if (file == number) {
+				links = ubsMtasParser (sites[6] + "archive", client, ref number, directArticleLink);
+				if (month == Convert.ToInt32(number)) {
 					return -1;
 				}
 				File.WriteAllText("ubsMtas.txt", number);
 			} else if (journal == "svJournal") {
-				links = svJournalParser (sites[2], client, ref number);
-				var file = File.ReadAllText ("svJournal.txt").Split(' ');
-				if (file [0] == number.Split (' ') [0] || file [1] == number.Split (' ') [1]) {
+				links = svJournalParser (sites[2], client, ref number, directArticleLink);
+				if (month == Convert.ToInt32(number.Split (' ') [0]) || year == Convert.ToInt32(number.Split (' ') [1])) {
 					return -1;
 				}
 				File.WriteAllText("svJournal.txt", number);
@@ -88,18 +117,25 @@ namespace sona
 				links = novtexParser (sites[3], client);
 				File.WriteAllText("novtex.txt", createText);*/
 			} else {
-				links = aidtParser(sites[4], client, ref number);
-				var file = File.ReadAllText ("aidt.txt").Split(' ');
-				if (file [0] == number.Split (' ') [0] || file [1] == number.Split (' ') [1]) {
+				links = aidtParser(sites[4], client, ref number, directArticleLink);
+				if (month == Convert.ToInt32(number.Split (' ') [0]) || year == Convert.ToInt32(number.Split (' ') [1])) {
 					return -1;
 				}
 				File.WriteAllText("aidt.txt", number);
 			}
-			foreach(var item in links)
-			{
+			foreach(var item in links) {
 				Console.WriteLine(item.ToString());
 			}
 			return 0;
+		}
+
+
+		/*
+		 * SqlWriter
+		 * /
+
+		public static bool sqlWriter() {
+
 		}
 
 
@@ -108,14 +144,20 @@ namespace sona
 		 * TODO: Refactoring
 		 */
 
-		public static Array ubsMtasParser(string url, WebClient client, ref string issueNumber)
+		public static Array ubsMtasParser(string url, WebClient client, ref string issueNumber, string directArticleLink)
 		{
 			var htmlNode = new HtmlDocument ();
-			issueNumber = "";
 			while (!String.IsNullOrEmpty (url)) {
-				htmlNode.LoadHtml (client.DownloadString (url));
+				if (string.IsNullOrEmpty(directArticleLink)) {
+					htmlNode.LoadHtml (client.DownloadString (url));
+				} else {
+					htmlNode.LoadHtml (directArticleLink);
+				}
 				var documentNode = htmlNode.DocumentNode;
 				try {
+					if (!string.IsNullOrEmpty(directArticleLink)) {
+						throw new ArgumentNullException();
+					}
 					var ulNode = documentNode
 					.SelectNodes ("//ul")
 					.Select (node => node.LastChild);
@@ -144,11 +186,14 @@ namespace sona
 		 * TODO: Refactoring
 		 */
 
-		public static Array isaParser(string url, WebClient client, ref string issueNumber)
+		public static Array isaParser(string url, WebClient client, ref string issueNumber, string directArticleLink)
 		{
 			var htmlNode = new HtmlDocument ();
-			issueNumber = "";
-			htmlNode.LoadHtml (client.DownloadString (url));
+			if (string.IsNullOrEmpty(directArticleLink)) {
+				htmlNode.LoadHtml (client.DownloadString (url));
+			} else {
+				htmlNode.LoadHtml (directArticleLink);
+			}
 			var documentNode = htmlNode.DocumentNode;
 			var trNode = documentNode
 				.SelectNodes ("//tr[@class='leftmenuarticles']") [0]
@@ -177,11 +222,14 @@ namespace sona
 			return articles.ToArray ();
 		}
 
-		public static Array jitcsParser(string url, WebClient client, ref string issueNumber)
+		public static Array jitcsParser(string url, WebClient client, ref string issueNumber, string directArticleLink)
 		{
 			var htmlNode = new HtmlDocument ();
-			issueNumber = "";
-			htmlNode.LoadHtml (client.DownloadString (url));
+			if (string.IsNullOrEmpty(directArticleLink)) {
+				htmlNode.LoadHtml (client.DownloadString (url));
+			} else {
+				htmlNode.LoadHtml (directArticleLink);
+			}
 			var documentNode = htmlNode.DocumentNode;
 			var trNode = documentNode
 				.SelectNodes ("//tr[@class='leftmenuarticles']") [0]
@@ -215,11 +263,14 @@ namespace sona
 		 * TODO: Need refactoring
 		 */
 
-		public static Array jitnsuParser(string url, WebClient client, ref string issueNumber)
+		public static Array jitnsuParser(string url, WebClient client, ref string issueNumber, string directArticleLink)
 		{
 			var htmlNode = new HtmlDocument ();
-			issueNumber = "";
-			htmlNode.LoadHtml (client.DownloadString (url));
+			if (string.IsNullOrEmpty(directArticleLink)) {
+				htmlNode.LoadHtml (client.DownloadString (url));
+			} else {
+				htmlNode.LoadHtml (directArticleLink);
+			}
 			var documentNode = htmlNode.DocumentNode;
 			var lastIssue = documentNode
 				.SelectNodes ("//dd/a")
@@ -251,11 +302,14 @@ namespace sona
 		 * TODO: Need refactoring
 		 */
 
-		public static Array svJournalParser(string url, WebClient client, ref string issueNumber)
+		public static Array svJournalParser(string url, WebClient client, ref string issueNumber, string directArticleLink)
 		{
 			var htmlNode = new HtmlDocument ();
-			issueNumber = "";
-			htmlNode.LoadHtml (client.DownloadString (url + "issues.php?lang=ru"));
+			if (string.IsNullOrEmpty(directArticleLink)) {
+				htmlNode.LoadHtml (client.DownloadString (url + "issues.php?lang=ru"));
+			} else {
+				htmlNode.LoadHtml (directArticleLink);
+			}
 			var documentNode = htmlNode.DocumentNode;
 			var lastIssue = documentNode
 				.SelectNodes ("//tr[2]/td[@class='nr' and last()]/a")
@@ -302,11 +356,14 @@ namespace sona
 		 * 		 Latter issue not always really latter
 		 */
 
-		public static Array aidtParser(string url, WebClient client, ref string issueNumber)
+		public static Array aidtParser(string url, WebClient client, ref string issueNumber, string directArticleLink)
 		{
 			var htmlNode = new HtmlDocument ();
-			issueNumber = "";
-			htmlNode.LoadHtml (client.DownloadString (url + "index.php?lang=ru"));
+			if (string.IsNullOrEmpty(directArticleLink)) {
+				htmlNode.LoadHtml (client.DownloadString (url + "index.php?lang=ru"));
+			} else {
+				htmlNode.LoadHtml (directArticleLink);
+			}
 			var documentNode = htmlNode.DocumentNode;
 			var lastIssue = url + documentNode.SelectSingleNode ("//div[@id='avatar-right']//li[1]/a")
 				.GetAttributeValue("href", "Can't parse");
