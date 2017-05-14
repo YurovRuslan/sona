@@ -54,6 +54,8 @@ namespace sona
 
 		public interface ISource {
 			void Parse();
+			Array articles { get; set; }
+			string manually_link { get; set; }
 		}
 
 		public class Jitcs : ISource {
@@ -77,7 +79,11 @@ namespace sona
 				var link = aNode.Attributes ["href"] != null
 					? HttpUtility.HtmlDecode (aNode.Attributes ["href"].Value.ToString ())
 					: "Can't parse";
-				htmlNode.LoadHtml (client.DownloadString (link));
+				if (String.IsNullOrEmpty (manually_link)) {
+					htmlNode.LoadHtml (client.DownloadString (link));
+				} else {
+					htmlNode.LoadHtml (client.DownloadString (manually_link));
+				}
 				documentNode = htmlNode.DocumentNode;
 				var trArtNodes = documentNode
 					.SelectNodes ("//tr[@class='leftmenuarticles']");
@@ -97,7 +103,8 @@ namespace sona
 
 			private string url = "http://jitcs.ru/";
 			private Date date;
-			private Array articles;
+			public Array articles { get; set; }
+			public string manually_link { get; set; }
 		}
 
 		public class JitNsu : ISource {
@@ -117,7 +124,11 @@ namespace sona
 					.Where (node => node.InnerText == "Последний выпуск")
 					.Select(node => sites[1] + node.Attributes["href"].Value.ToString())
 					.First();
-				htmlNode.LoadHtml (client.DownloadString (lastIssue));
+				if (String.IsNullOrEmpty (manually_link)) {
+					htmlNode.LoadHtml (client.DownloadString (lastIssue));
+				} else {
+					htmlNode.LoadHtml (client.DownloadString (manually_link));
+				}
 				documentNode = htmlNode.DocumentNode;
 				date = Tuple.Create(Convert.ToInt32(documentNode
 						.SelectNodes("//body/p")[0]
@@ -147,7 +158,8 @@ namespace sona
 
 			private string url = "http://jit.nsu.ru/index.php?+ru";
 			private Date date;
-			private Array articles;
+			public Array articles { get; set; }
+			public string manually_link{ get; set; }
 		}
 
 		public class Isa : ISource {
@@ -170,7 +182,11 @@ namespace sona
 				var link = aNode.Attributes ["href"] != null
 					? HttpUtility.HtmlDecode (aNode.Attributes ["href"].Value.ToString ())
 					: "Can't parse";
-				htmlNode.LoadHtml (client.DownloadString (link));
+				if (String.IsNullOrEmpty (manually_link)) {
+					htmlNode.LoadHtml (client.DownloadString (link));
+				} else {
+					htmlNode.LoadHtml (client.DownloadString (manually_link));
+				}
 				documentNode = htmlNode.DocumentNode;
 				var trArtNodes = documentNode
 					.SelectNodes ("//tr[@class='leftmenuarticles']");
@@ -190,7 +206,8 @@ namespace sona
 
 			private string url = "http://isa.ru/proceedings";
 			private Date date;
-			private Array articles;
+			public Array articles { get; set; }
+			public string manually_link { get; set; }
 		}
 
 		public class UbsMtas : ISource {
@@ -204,7 +221,11 @@ namespace sona
 					SearchEnc.SearchEncoding(url));
 				var htmlNode = new HtmlDocument ();
 				while (!String.IsNullOrEmpty (url)) {
-					htmlNode.LoadHtml (client.DownloadString (url));
+					if (String.IsNullOrEmpty (manually_link)) {
+						htmlNode.LoadHtml (client.DownloadString (url));
+					} else {
+						htmlNode.LoadHtml (client.DownloadString (manually_link));
+					}
 					var documentNode = htmlNode.DocumentNode;
 					try {
 						var ulNode = documentNode
@@ -224,6 +245,7 @@ namespace sona
 								: "Can't parse")
 							.ToArray ();
 						articles = articlesUrl;
+						return;
 					}
 				}
 				articles = new string[] {};
@@ -231,7 +253,8 @@ namespace sona
 
 			private string url = "http://ubs.mtas.ru/archive";
 			private Date date;
-			private Array articles;
+			public Array articles { get; set; }
+			public string manually_link { get; set; }
 		}
 
 		public class SvJournal : ISource {
@@ -242,18 +265,25 @@ namespace sona
 			public void Parse() {
 				WebClient client = new WebClient ();
 				client.Encoding = Encoding.GetEncoding (
-					SearchEnc.SearchEncoding(url));
+					SearchEnc.SearchEncoding(url + "issues.php?lang=ru"));
 				var htmlNode = new HtmlDocument ();
-				htmlNode.LoadHtml (client.DownloadString (url));
+				htmlNode.LoadHtml (client.DownloadString (url + "issues.php?lang=ru"));
 				var documentNode = htmlNode.DocumentNode;
 				var lastIssue = documentNode
 					.SelectNodes ("//tr[2]/td[@class='nr' and last()]/a")
 					.Select (node => node.Attributes ["href"] != null
 						? HttpUtility.HtmlDecode (url + node.Attributes ["href"].Value.ToString ())
 						: "Can't parse").ElementAt(0);
-				var uriAddress = new Uri (lastIssue);
-				var issueDate = uriAddress.AbsolutePath.Split('/')[1] + '/';
-				htmlNode.LoadHtml (client.DownloadString (lastIssue));
+				string issueDate;
+				if (String.IsNullOrEmpty (manually_link)) {
+					htmlNode.LoadHtml (client.DownloadString (lastIssue));
+					var uriAddress = new Uri (lastIssue);
+					issueDate = uriAddress.AbsolutePath.Split('/')[1] + '/';
+				} else {
+					htmlNode.LoadHtml (client.DownloadString (manually_link));
+					var uriAddress = new Uri (manually_link);
+					issueDate = uriAddress.AbsolutePath.Split('/')[1] + '/';
+				}
 				documentNode = htmlNode.DocumentNode;
 				var articlesArray = documentNode
 					.SelectNodes ("//tr/td[@class='pub_pp']/a")
@@ -270,9 +300,10 @@ namespace sona
 				articles = articlesArray;
 			}
 
-			private string url = "http://sv-journal.org/issues.php?lang=ru";
+			private string url = "http://sv-journal.org/";
 			private Date date;
-			private Array articles;
+			public Array articles { get; set; }
+			public string manually_link{ get; set; }
 		}
 
 		public class Aidt : ISource {
@@ -283,13 +314,18 @@ namespace sona
 			public void Parse() {
 				WebClient client = new WebClient ();
 				client.Encoding = Encoding.GetEncoding (
-					SearchEnc.SearchEncoding(url));
+					SearchEnc.SearchEncoding(url + "/index.php?lang=ru"));
 				var htmlNode = new HtmlDocument ();
-				htmlNode.LoadHtml (client.DownloadString (url));
+				htmlNode.LoadHtml (client.DownloadString (url + "/index.php?lang=ru"));
 				var documentNode = htmlNode.DocumentNode;
 				var lastIssue = url + documentNode.SelectSingleNode ("//div[@id='avatar-right']//li[1]/a")
 					.GetAttributeValue("href", "Can't parse");
-				htmlNode.LoadHtml (client.DownloadString (lastIssue));
+				if (String.IsNullOrEmpty (manually_link)) {
+					lastIssue = System.Web.HttpUtility.HtmlDecode(lastIssue);
+					htmlNode.LoadHtml (client.DownloadString (lastIssue));
+				} else {
+					htmlNode.LoadHtml (client.DownloadString (manually_link));
+				}
 				documentNode = htmlNode.DocumentNode;
 				date = Tuple.Create(Convert.ToInt32 (documentNode
 						.SelectNodes ("//div[@class='category-list']/h2/span") [0]
@@ -307,9 +343,10 @@ namespace sona
 					.ToArray();
 			}
 
-			private string url = "http://aidt.ru/index.php?lang=ru";
+			private string url = "http://aidt.ru";
 			private Date date;
-			private Array articles;
+			public Array articles { get; set; }
+			public string manually_link { get; set; }
 		}
 
 		public class BiJournal : ISource {
@@ -326,7 +363,11 @@ namespace sona
 				var documentNode = htmlNode.DocumentNode;
 				var lastIssue = documentNode.SelectSingleNode ("//div[@class='journal']//div[@class='new-num']/a")
 					.GetAttributeValue("href", "Can't parse");
-				htmlNode.LoadHtml (client.DownloadString (lastIssue));
+				if (String.IsNullOrEmpty (manually_link)) {
+					htmlNode.LoadHtml (client.DownloadString (lastIssue));
+				} else {
+					htmlNode.LoadHtml (client.DownloadString (manually_link));
+				}
 				documentNode = htmlNode.DocumentNode;
 				date = Tuple.Create(Convert.ToInt32 (new Uri(lastIssue).AbsolutePath.Substring(1).Split('-')[0]),
 					Convert.ToInt32 (new Uri(lastIssue).AbsolutePath.Substring(1).Split('-')[2].Split('%')[0]));
@@ -340,7 +381,8 @@ namespace sona
 
 			private string url = "http://bijournal.hse.ru";
 			private Date date;
-			private Array articles;
+			public Array articles { get; set; }
+			public Array Articles { get; set; }			public string manually_link { get; set; }
 		}
 
 		public class Factory {
@@ -356,6 +398,8 @@ namespace sona
 					return new Aidt();
 				case WebResource.SVJOURNAL:
 					return new SvJournal();
+				case WebResource.ISA:
+					return new Isa();
 				case WebResource.UBSMTAS:
 					return new UbsMtas();
 				case WebResource.BIJOURNAL:
@@ -378,17 +422,18 @@ namespace sona
 				return -1;
 			}
 			var journal = args[0];*/
-			var journal = "http://bijournal.hse.ru";
+			var journal = "http://isa.ru";
 
 			Factory factory = new Factory ();
 			var source = factory.CreateSource (toWebResource(journal));
 
 			var lastIssueDate = getDateFromDb (journal);
+			source.manually_link = "http://www.isa.ru/proceedings/index.php?option=com_content&view=article&id=951";
 			source.Parse ();
 
-			/*foreach(var item in source) {
-				Console.WriteLine(item.ToString());
-			}*/
+			foreach(var item in source.articles) {
+				File.AppendAllText ("links_isa.txt", item.ToString() + Environment.NewLine);
+			}
 			return 0;
 		}
 
@@ -406,7 +451,7 @@ namespace sona
 					return WebResource.SVJOURNAL;
 				case "ipiran.ru":
 					return WebResource.IPIRAN;
-					case "isa.ru":
+				case "isa.ru":
 					return WebResource.ISA;
 				case "ubs.mtas.ru":
 					return WebResource.UBSMTAS;
